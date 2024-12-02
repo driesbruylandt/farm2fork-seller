@@ -1,5 +1,6 @@
 package com.example.farm2fork_sellers
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -14,7 +15,6 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.ui.geometry.Size
 import androidx.core.content.ContextCompat
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -22,6 +22,10 @@ import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import android.util.Log
+import org.json.JSONObject
+import com.github.kittinunf.fuel.Fuel
+import com.github.kittinunf.fuel.core.extensions.cUrlString
+import com.github.kittinunf.result.Result
 
 class MainActivity : ComponentActivity() {
 
@@ -29,6 +33,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var resultTextView : TextView
     private lateinit var cameraExecutor: ExecutorService
     private lateinit var barcodeScanner: BarcodeScanner
+    private var isRequestInProgress = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,6 +93,7 @@ class MainActivity : ComponentActivity() {
                 .addOnSuccessListener { barcodes ->
                     for (barcode in barcodes) {
                         resultTextView.text = barcode.rawValue
+                        sendBarcodeToServer(barcode.rawValue)
                     }
                 }
                 .addOnFailureListener {
@@ -98,5 +104,58 @@ class MainActivity : ComponentActivity() {
                 }
 
         }
+    }
+
+
+
+    private fun sendBarcodeToServer(barcode: String?) {
+        if (isRequestInProgress) {
+            return
+        }
+        isRequestInProgress = true
+        val url = "http://10.0.2.2:8000/api/verify-qr-token"
+        val requestBody = mapOf("token" to barcode)
+        Log.d("MainActivity", "Sending request to $url with barcode: $barcode and request body: $requestBody")
+
+        Fuel.post(url)
+            .header("Content-Type" to "application/json")
+            .body(JSONObject(requestBody).toString())
+            .responseString { request, response, result ->
+                Log.d("MainActivity", "Request: ${request.cUrlString()}")
+                Log.d("MainActivity", "Response: ${response.statusCode} ${response.responseMessage}")
+                Log.d("MainActivity", "Response body: ${response.body().asString("application/json")}") // Log the response body
+                isRequestInProgress = false
+                when (result) {
+                    is Result.Failure -> {
+                        Log.d("MainActivity", "Request failed: ${result.error}")
+                        Log.d("MainActivity", "Failed to send barcode to server", result.getException())
+                        resultTextView.text = "Failed to send barcode to server"
+                    }
+                    is Result.Success -> {
+                        Log.d("MainActivity", "Request succeeded: ${result.value}")
+                        val responseString = result.get()
+                        try {
+                            Log.d("MainActivity", "Start Pairing; ${responseString}")
+                            val jsonResponse = JSONObject(responseString)
+                            Log.d("MainActivity", "Received response: $jsonResponse")
+
+                            val status = jsonResponse.getString("status")
+                            if (status == "success") {
+                                val user = jsonResponse.getJSONObject("user")
+                                val userId = user.getInt("id")
+                                val userName = user.getString("name")
+                                val userEmail = user.getString("email")
+                                resultTextView.text = "Authenticated: $userName ($userEmail)"
+                            } else {
+                                val message = jsonResponse.getString("message")
+                                resultTextView.text = "Error: $message"
+                            }
+                        } catch (e: Exception) {
+                            Log.d("MainActivity", "Error parsing JSON response", e)
+                            resultTextView.text = "Error parsing response"
+                        }
+                    }
+                }
+            }
     }
 }

@@ -68,4 +68,9 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.1.0")
     // If you want to additionally use the CameraX View class
     implementation("androidx.camera:camera-view:1.0.0-alpha30")
+
+    implementation("com.github.kittinunf.fuel:fuel:2.3.1")
+
+    implementation("com.github.kittinunf.fuel:fuel-gson:2.3.1")
+    implementation("com.google.code.gson:gson:2.8.8")
 }
