@@ -26,6 +26,7 @@ import org.json.JSONObject
 import com.github.kittinunf.fuel.Fuel
 import com.github.kittinunf.fuel.core.extensions.cUrlString
 import com.github.kittinunf.result.Result
+import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : ComponentActivity() {
 
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity() {
         resultTextView = findViewById(R.id.resultTextView)
         cameraExecutor = Executors.newSingleThreadExecutor()
         barcodeScanner = BarcodeScanning.getClient()
+
 
         val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
@@ -106,7 +108,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
+    private fun saveUserData(userId: Int, userName: String, userEmail: String) {
+        val sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE)
+        val editor = sharedPreferences.edit()
+        editor.putInt("USER_ID", userId)
+        editor.putString("USER_NAME", userName)
+        editor.putString("USER_EMAIL", userEmail)
+        editor.apply()
+    }
 
     private fun sendBarcodeToServer(barcode: String?) {
         if (isRequestInProgress) {
@@ -129,7 +138,7 @@ class MainActivity : ComponentActivity() {
                     is Result.Failure -> {
                         Log.d("MainActivity", "Request failed: ${result.error}")
                         Log.d("MainActivity", "Failed to send barcode to server", result.getException())
-                        resultTextView.text = "Failed to send barcode to server"
+                        resultTextView.text = "Token is invalid"
                     }
                     is Result.Success -> {
                         Log.d("MainActivity", "Request succeeded: ${result.value}")
@@ -145,7 +154,9 @@ class MainActivity : ComponentActivity() {
                                 val userId = user.getInt("id")
                                 val userName = user.getString("name")
                                 val userEmail = user.getString("email")
-                                resultTextView.text = "Authenticated: $userName ($userEmail)"
+                                saveUserData(userId, userName, userEmail)
+                                val intent = Intent(this, UserActivity::class.java)
+                                startActivity(intent)
                             } else {
                                 val message = jsonResponse.getString("message")
                                 resultTextView.text = "Error: $message"
