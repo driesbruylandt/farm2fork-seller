@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "375477974196",
+    "project_id": "java-advanced",
+    "storage_bucket": "java-advanced.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:375477974196:android:1955451488672650f353e1",
+        "android_client_info": {
+          "package_name": "com.example.farm2fork_sellers"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEshHCWU7fxLzFumGTTVXUKXGnrQ8P3-Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

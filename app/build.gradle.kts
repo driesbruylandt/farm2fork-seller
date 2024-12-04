@@ -4,17 +4,12 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
 }
 
 android {
     namespace = "com.example.farm2fork_sellers"
     compileSdk = 35
-
-    packaging {
-        resources {
-            excludes += "META-INF/INDEX.LIST"
-        }
-    }
 
     defaultConfig {
         applicationId = "com.example.farm2fork_sellers"
@@ -82,5 +77,13 @@ dependencies {
 
     implementation("com.github.kittinunf.fuel:fuel-gson:2.3.1")
     implementation("com.google.code.gson:gson:2.8.8")
+    implementation("com.google.android.material:material:1.8.0")
+    implementation(platform("com.google.firebase:firebase-bom:33.6.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.rabbitmq:amqp-client:5.13.0")
+    implementation("com.google.firebase:firebase-messaging:23.0.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
+
 
 }
