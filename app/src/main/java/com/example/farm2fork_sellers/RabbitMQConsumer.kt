@@ -49,7 +49,7 @@ class RabbitMQConsumer(private val context: Context) {
 
             val builder = NotificationCompat.Builder(context, "CHANNEL_ID")
                 .setSmallIcon(R.drawable.notification_icon) // Ensure this is a valid drawable resource ID
-                .setContentTitle("New Product Created")
+                .setContentTitle("Niew Product Ontvangen")
                 .setContentText(body)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
 

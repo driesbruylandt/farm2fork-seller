@@ -17,18 +17,30 @@ import android.content.Context
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import android.Manifest
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.core.content.ContextCompat
 
 class UserActivity : ComponentActivity() {
+    private lateinit var networkChangeReceiver: NetworkChangeReceiver
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_user)
+
         createNotificationChannel()
         requestNotificationPermission()
         getUserData()
+
+        networkChangeReceiver = NetworkChangeReceiver()
+        val filter = IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
+        registerReceiver(networkChangeReceiver, filter)
+
         val rabbitMQConsumer = RabbitMQConsumer(this)
         rabbitMQConsumer.startConsuming()
+
         val refreshButton: Button = findViewById(R.id.refreshButton)
         refreshButton.setOnClickListener {
             val sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE)
@@ -37,6 +49,11 @@ class UserActivity : ComponentActivity() {
                 fetchUserProducts(userId)
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(networkChangeReceiver)
     }
 
     private fun getUserData() {
@@ -83,7 +100,7 @@ class UserActivity : ComponentActivity() {
     private fun displayProducts(products: List<Product>) {
         val productsContainer: LinearLayout = findViewById(R.id.productsContainer)
         productsContainer.removeAllViews() // Clear existing views
-        products.forEach { product ->
+        products.filter { it.status == "inProgress" }.forEach { product ->
             val productView = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(0, 16, 0, 16)
@@ -97,7 +114,7 @@ class UserActivity : ComponentActivity() {
             val toggleButton = Button(this).apply {
                 text = "Toggle Status"
                 setOnClickListener {
-                    toggleProductStatus(product)
+                    toggleProductStatus(product, this@UserActivity) // Pass the context explicitly
                 }
             }
 
@@ -107,35 +124,45 @@ class UserActivity : ComponentActivity() {
         }
     }
 
-    private fun toggleProductStatus(product: Product) {
-        val newStatus = if (product.status == "inProgress") "Done" else "inProgress"
-        val url = "http://10.0.2.2:8000/api/products/${product.id}/status"
+    private fun toggleProductStatus(product: Product, context: Context) {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork
+        val networkCapabilities = connectivityManager.getNetworkCapabilities(network)
+        val isConnected = networkCapabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
 
-        val jsonBody = """
+        val newStatus = if (product.status == "inProgress") "Done" else "inProgress"
+
+        if (isConnected) {
+            val url = "http://10.0.2.2:8000/api/products/${product.id}/status"
+            val jsonBody = """
         {
             "status": "$newStatus"
         }
-    """.trimIndent()
+        """.trimIndent()
 
-        Fuel.put(url)
-            .body(jsonBody)
-            .header("Content-Type" to "application/json")
-            .responseString { _, _, result ->
-                when (result) {
-                    is Result.Failure -> {
-                        val error = result.getException()
-                        Log.d("UserActivity", "Failed to update product status: $error")
-                    }
-                    is Result.Success -> {
-                        Log.d("UserActivity", "Product status updated successfully")
-                        runOnUiThread {
-                            // Update the UI to reflect the new status
-                            fetchUserProducts(product.user_id)
+            Fuel.put(url)
+                .body(jsonBody)
+                .header("Content-Type" to "application/json")
+                .responseString { _, _, result ->
+                    when (result) {
+                        is Result.Failure -> {
+                            val error = result.getException()
+                            Log.d("UserActivity", "Failed to update product status: $error")
+                        }
+                        is Result.Success -> {
+                            Log.d("UserActivity", "Product status updated successfully")
+                            runOnUiThread {
+                                fetchUserProducts(product.user_id)
+                            }
                         }
                     }
                 }
-            }
+        } else {
+            savePendingToggle(product.id.toString(), newStatus, context)
+            Log.d("UserActivity", "No network. Saved toggle for product ${product.id}")
+        }
     }
+
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -165,5 +192,16 @@ class UserActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun savePendingToggle(productId: String, newStatus: String, context: Context) {
+        val sharedPreferences = context.getSharedPreferences("pendingToggles", Context.MODE_PRIVATE)
+        val editor = sharedPreferences.edit()
+
+        val pendingToggles = sharedPreferences.getStringSet("toggles", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+        pendingToggles.add("$productId:$newStatus")
+
+        editor.putStringSet("toggles", pendingToggles)
+        editor.apply()
     }
 }
